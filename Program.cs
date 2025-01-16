@@ -12,6 +12,8 @@ namespace ProjetNLP
         {
             var pretraitement = new PretraitementTextuel();
             var modeleNLP = new ModeleNLP(pretraitement);
+            var analyseStatistique = new AnalyseStatistique();
+            var analyseFrequentielle = new AnalyseFrequentielle();
 
             // Commande TRAIN
             var trainCommand = new Command("TRAIN", "Entraîne le modèle NLP");
@@ -28,10 +30,14 @@ namespace ProjetNLP
                     var accesDonnees = new AccesDonnees(dataPath);
                     var donnees = accesDonnees.ChargerDonnees();
 
-                    Console.WriteLine("Entraînement du modèle...");
+                    Console.WriteLine("Entraînement du modèle ML.NET...");
                     var modele = modeleNLP.CreerEtEntrainerModele(donnees);
 
-                    Console.WriteLine($"Sauvegarde du modèle vers {modelPath}...");
+                    Console.WriteLine("Entraînement de l'analyse fréquentielle...");
+                    analyseFrequentielle.ApprendreDesDonnees(donnees);
+                    analyseFrequentielle.AfficherStatistiques();
+
+                    Console.WriteLine($"\nSauvegarde du modèle vers {modelPath}...");
                     modeleNLP.SauvegarderModele(modelPath);
 
                     Console.WriteLine("Entraînement terminé avec succès!");
@@ -43,7 +49,7 @@ namespace ProjetNLP
             }, modelPathArg, dataPathArg);
 
             // Commande PREDICT
-            var predictCommand = new Command("PREDICT", "Prédit la classe d'un texte");
+            var predictCommand = new Command("PREDICT", "Prédit la classe d'un texte avec le modèle ML.NET");
             var modelPathPredictArg = new Argument<string>("CheminModele", "Chemin vers le fichier modèle");
             var textArg = new Argument<string>("TexteAPredire", "Texte à prédire");
             var langArg = new Argument<int>("CodeLangue", "Code de la langue (1 pour anglais, 2 pour français)");
@@ -69,10 +75,62 @@ namespace ProjetNLP
                 }
             }, modelPathPredictArg, textArg, langArg);
 
+            // Commande ANALYSE
+            var analyseCommand = new Command("ANALYSE", "Analyse statistique d'un texte");
+            var analyseTextArg = new Argument<string>("TexteAAnalyser", "Texte à analyser");
+            var analyseLangArg = new Argument<int>("CodeLangue", "Code de la langue (1 pour anglais, 2 pour français)");
+            analyseCommand.AddArgument(analyseTextArg);
+            analyseCommand.AddArgument(analyseLangArg);
+
+            analyseCommand.SetHandler(async (string text, int lang) =>
+            {
+                try
+                {
+                    Console.WriteLine("Analyse statistique en cours...");
+                    var resultat = analyseStatistique.AnalyserTexte(text, lang);
+                    analyseStatistique.AfficherAnalyseDetaillee(resultat);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Erreur lors de l'analyse : {ex.Message}");
+                }
+            }, analyseTextArg, analyseLangArg);
+
+            // Nouvelle commande FREQUENCE
+            var frequenceCommand = new Command("FREQUENCE", "Analyse fréquentielle d'un texte");
+            var frequenceTextArg = new Argument<string>("TexteAAnalyser", "Texte à analyser");
+            var frequenceDataArg = new Argument<string>("CheminBaseDeDonnees", "Chemin vers la base de données d'apprentissage");
+            frequenceCommand.AddArgument(frequenceDataArg);
+            frequenceCommand.AddArgument(frequenceTextArg);
+
+            frequenceCommand.SetHandler(async (string dataPath, string text) =>
+            {
+                try
+                {
+                    Console.WriteLine("Chargement des données d'apprentissage...");
+                    var accesDonnees = new AccesDonnees(dataPath);
+                    var donnees = accesDonnees.ChargerDonnees();
+
+                    Console.WriteLine("Apprentissage des motifs...");
+                    analyseFrequentielle.ApprendreDesDonnees(donnees);
+                    analyseFrequentielle.AfficherStatistiques();
+
+                    Console.WriteLine("\nAnalyse du texte...");
+                    var resultat = analyseFrequentielle.AnalyserTexte(text);
+                    analyseFrequentielle.AfficherAnalyseDetaillee(resultat);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Erreur lors de l'analyse fréquentielle : {ex.Message}");
+                }
+            }, frequenceDataArg, frequenceTextArg);
+
             // Root command
             var rootCommand = new RootCommand("Application de classification de textes SWIFT");
             rootCommand.AddCommand(trainCommand);
             rootCommand.AddCommand(predictCommand);
+            rootCommand.AddCommand(analyseCommand);
+            rootCommand.AddCommand(frequenceCommand);
 
             return await rootCommand.InvokeAsync(args);
         }
